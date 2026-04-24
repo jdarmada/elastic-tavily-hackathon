@@ -41,7 +41,7 @@ Before you start:
 
 Sign up for a free 14 day trial:
 
-https://cloud.elastic.co/serverless-registration
+[https://cloud.elastic.co/serverless-registration](https://cloud.elastic.co/serverless-registration?utm_campaign=hack-night-signups&utm_source=onsite&utm_medium=sf)
 
 
 ## Tavily
@@ -55,43 +55,15 @@ Store it securely.
 
 ---
 
-# Step 2 — Create an Elasticsearch Index
-
-Create an index within the dev tools to store fresh web results:
-
-Example mapping:
-
-```json
-PUT ai-fresh-context
-{
-  "mappings": {
-    "properties": {
-      "title": { "type": "text" },
-      "url": { "type": "keyword" },
-      "domain": { "type": "keyword" },
-      "content": { "type": "semantic_text" },
-      "snippet": { "type": "text" },
-      "source": { "type": "keyword" },
-      "topic": { "type": "keyword" },
-      "retrieved_at": { "type": "date" },
-      "published_date": { "type": "date" }
-    }
-  }
-}
-```
-
-The semantic_text field type enables semantic retrieval inside Agent Builder automatically.
-
----
-
-# Step 3 — Create an Elastic Workflow
+# Step 2 — Create an Elastic Workflow
 
 Your workflow should:
 
 1. run on a schedule/trigger
-2. call Tavily Search API
-3. normalize results
-4. index documents into Elasticsearch
+2. check if your index exists/create one if not
+3. call Tavily Search API
+4. normalize results
+5. index documents into Elasticsearch
 
 Example workflow:
 
@@ -106,13 +78,49 @@ triggers:
       every: 12h
 
 steps:
+
+  # Step 1: Check if index exists
+  - name: check_index_exists
+    type: elasticsearch.indices.exists
+    with:
+      index: ai-fresh-context
+
+  # Step 2: Create index if missing
+  - name: create_index_if_missing
+    type: elasticsearch.indices.create
+    if: "{{ steps.check_index_exists.output.exists == false }}"
+    with:
+      index: ai-fresh-context
+      body:
+        mappings:
+          properties:
+            title:
+              type: text
+            url:
+              type: keyword
+            domain:
+              type: keyword
+            content:
+              type: semantic_text
+            snippet:
+              type: text
+            source:
+              type: keyword
+            topic:
+              type: keyword
+            retrieved_at:
+              type: date
+            published_date:
+              type: date
+
+  # Step 3: Call Tavily Search API
   - name: tavily_search
     type: http
     with:
       url: https://api.tavily.com/search
       method: POST
       headers:
-        Authorization: "Bearer TAVILY_API_KEY"
+        Authorization: "Bearer {{ secrets.TAVILY_API_KEY }}"
         Content-Type: application/json
       body: |
         {
@@ -122,10 +130,12 @@ steps:
           "include_raw_content": true
         }
 
+  # Step 4: Index results
   - name: index_articles
     type: foreach
     foreach: "{{ steps.tavily_search.output.data.results }}"
     steps:
+
       - name: upsert_doc
         type: elasticsearch.update
         with:
@@ -135,10 +145,12 @@ steps:
           doc:
             title: "{{ foreach.item.title }}"
             url: "{{ foreach.item.url }}"
+            domain: "{{ foreach.item.url | replace: 'https://', '' | replace: 'http://', '' | split: '/' | first }}"
             snippet: "{{ foreach.item.content }}"
-            content: "{{ foreach.item.raw_content | default: foreach.item.content }}"
+            content: "{{ foreach.item.raw_content | default: foreach.item.content | truncate: 12000 }}"
             source: "tavily_search"
             topic: "ai_agents"
+            published_date: "{{ foreach.item.published_date | default: blank }}"
             retrieved_at: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
 ```
 
@@ -146,13 +158,13 @@ Run the workflow once manually to confirm documents appear in your index.
 
 ---
 
-# Step 4 — Head to the Agents tab to access Agent Builder
+# Step 3 — Head to the Agents tab to access Agent Builder
 
 Using the built-in chat, ask a query like: What's the latest news in AI?
 
 
 
-# Step 5 Bonus — Create an Agent in Agent Builder
+# Bonus — Create an Agent in Agent Builder
 
 Navigate to:
 
@@ -168,7 +180,8 @@ If the user asks about trends, summarize themes across sources.
 
 Attach tools:
 
-- Elasticsearch search tool
+- platform.core.search
+- any custom tools
 
 Set your index:
 
