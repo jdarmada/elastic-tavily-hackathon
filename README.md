@@ -72,11 +72,9 @@ name: ai-trends-workflow
 enabled: true
 description: Fetch fresh AI news for agent retrieval
 
-inputs:
-  - name: index_name
-    type: string
-    description: "Target Elasticsearch index name"
-    default: "ai-fresh-context"
+consts:
+  index_name: "ai-fresh-context"
+
 
 triggers:
   - type: scheduled
@@ -88,7 +86,7 @@ steps:
   - name: get_index
     type: elasticsearch.indices.exists
     with:
-      index: "{{ inputs.index_name }}"
+      index: "{{ consts.index_name }}"
 
   # Step 2: Create index only if missing
   - name: check_if_index_missing
@@ -98,7 +96,7 @@ steps:
       - name: create_index
         type: elasticsearch.indices.create
         with:
-          index: "{{ inputs.index_name }}"
+          index: "{{ consts.index_name }}"
           mappings:
             properties:
               title:
@@ -143,7 +141,7 @@ steps:
       - name: upsert_doc
         type: elasticsearch.update
         with:
-          index: "{{ inputs.index_name }}"
+          index: "{{ consts.index_name }}"
           id: "{{ foreach.item.url }}"
           doc_as_upsert: true
           doc:
@@ -157,6 +155,26 @@ steps:
             retrieved_at: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
 ```
 
+The example above hardcodes your api key (only for demo purposes). To hide your credentials, create an HTTP connector and replace the HTTP step above: 
+
+```yaml
+  # Optional creating an HTTP connector
+  - name: tavily_search_connector
+    type: http
+    connector-id: tavily-search
+    with:
+      url: https://api.tavily.com/search
+      method: POST
+      body: | 
+        {
+          "query": "latest AI agent frameworks announcements",
+          "search_depth": "advanced",
+          "max_results": 5,
+          "include_raw_content": true
+        }
+```
+
+Copy and paste this workflow into the Workflows Editor.
 Run the workflow once manually to confirm documents appear in your index.
 
 ---
@@ -197,53 +215,6 @@ What changed in AI agents this week?
 ---
 
 
-# Suggested Project Ideas
-
-## AI Release Tracker
-
-Track announcements from:
-
-- OpenAI
-- Anthropic
-- Meta
-- Elastic
-- Hugging Face
-
----
-
-## Startup Intelligence Agent
-
-Monitor:
-
-latest AI startup funding announcements
-
----
-
-## Research Paper Watcher
-
-Track:
-
-latest LLM research arxiv
-
----
-
-## Policy Monitoring Agent
-
-Track:
-
-latest AI regulation announcements US EU
-
----
-
-## Dev Tool Release Monitor
-
-Track:
-
-latest MCP tools OR agent SDK releases
-
----
-
-
 # Judging Criteria
 
 Projects will be evaluated based on:
@@ -264,21 +235,6 @@ Bonus points for:
 - Custom agents and tools within Agent Builder
 
 ---
-
-# Architecture Reference
-
-Baseline architecture:
-
-Elastic Workflow (scheduled)
-↓
-Tavily Search API
-↓
-Transform results
-↓
-Elasticsearch index
-↓
-Agent Builder retrieval
-
 
 # Helpful Links
 
