@@ -174,6 +174,28 @@ The example above hardcodes your api key (only for demo purposes). To hide your 
         }
 ```
 
+Optional: Improve workflow reliability with retries and failure alerting. Below is an example of sending a Slack message due to a failed ingestion step:
+
+```yaml
+on-failure:
+    retry:
+      max_attempts: 2
+      delay: 3s
+
+    steps:
+      - name: slack_alert_index_failure
+        type: http
+        with:
+          url: "SLACK_WEBHOOK_URL"
+          method: POST
+          headers:
+            Content-Type: application/json
+          body: |
+            {
+              "text": "ai-trends-workflow indexing failed for {{ foreach.item.url }}\nError: {{ steps.upsert_doc.error }}"
+            }
+```
+
 Copy and paste this workflow into the Workflows Editor.
 Run the workflow once manually to confirm documents appear in your index.
 
@@ -232,6 +254,7 @@ Bonus points for:
 - metadata enrichment
 - filtering or reranking
 - workflow-triggered agent actions
+- on-failure/retries
 - Custom agents and tools within Agent Builder
 
 ---
