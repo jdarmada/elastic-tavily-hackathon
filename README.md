@@ -125,7 +125,7 @@ steps:
       url: https://api.tavily.com/search
       method: POST
       headers:
-        Authorization: "Bearer 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"
+        Authorization: "Bearer tavily-api-key"
         Content-Type: application/json
       body: |
         {
