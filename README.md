@@ -72,46 +72,51 @@ name: ai-trends-workflow
 enabled: true
 description: Fetch fresh AI news for agent retrieval
 
+inputs:
+  - name: index_name
+    type: string
+    description: "Target Elasticsearch index name"
+    default: "ai-fresh-context"
+
 triggers:
   - type: scheduled
     with:
       every: 12h
 
 steps:
-
   # Step 1: Check if index exists
-  - name: check_index_exists
+  - name: get_index
     type: elasticsearch.indices.exists
     with:
-      index: ai-fresh-context
+      index: "{{ inputs.index_name }}"
 
-  # Step 2: Create index if missing
-  - name: create_index_if_missing
-    type: elasticsearch.indices.create
-    if: "{{ steps.check_index_exists.output.exists == false }}"
-    with:
-      index: ai-fresh-context
-      body:
-        mappings:
-          properties:
-            title:
-              type: text
-            url:
-              type: keyword
-            domain:
-              type: keyword
-            content:
-              type: semantic_text
-            snippet:
-              type: text
-            source:
-              type: keyword
-            topic:
-              type: keyword
-            retrieved_at:
-              type: date
-            published_date:
-              type: date
+  # Step 2: Create index only if missing
+  - name: check_if_index_missing
+    type: if
+    condition: 'steps.get_index.output : false'
+    steps:
+      - name: create_index
+        type: elasticsearch.indices.create
+        with:
+          index: "{{ inputs.index_name }}"
+          mappings:
+            properties:
+              title:
+                type: text
+              url:
+                type: keyword
+              domain:
+                type: keyword
+              content:
+                type: semantic_text
+              snippet:
+                type: text
+              source:
+                type: keyword
+              topic:
+                type: keyword
+              retrieved_at:
+                type: date
 
   # Step 3: Call Tavily Search API
   - name: tavily_search
@@ -120,7 +125,7 @@ steps:
       url: https://api.tavily.com/search
       method: POST
       headers:
-        Authorization: "Bearer {{ secrets.TAVILY_API_KEY }}"
+        Authorization: "Bearer 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"
         Content-Type: application/json
       body: |
         {
@@ -135,11 +140,10 @@ steps:
     type: foreach
     foreach: "{{ steps.tavily_search.output.data.results }}"
     steps:
-
       - name: upsert_doc
         type: elasticsearch.update
         with:
-          index: ai-fresh-context
+          index: "{{ inputs.index_name }}"
           id: "{{ foreach.item.url }}"
           doc_as_upsert: true
           doc:
@@ -150,7 +154,6 @@ steps:
             content: "{{ foreach.item.raw_content | default: foreach.item.content | truncate: 12000 }}"
             source: "tavily_search"
             topic: "ai_agents"
-            published_date: "{{ foreach.item.published_date | default: blank }}"
             retrieved_at: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
 ```
 
