@@ -127,7 +127,7 @@ steps:
         Content-Type: application/json
       body: |
         {
-          "query": "latest AI agent frameworks announcements",
+          "query": "latest artificial intelligence news announcements research products regulation startups",
           "search_depth": "advanced",
           "max_results": 5,
           "include_raw_content": true
